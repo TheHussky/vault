@@ -145,6 +145,7 @@ type issuerEntry struct {
 	SerialNumber         string                    `json:"serial_number"`
 	LeafNotAfterBehavior certutil.NotAfterBehavior `json:"not_after_behavior"`
 	Usage                issuerUsage               `json:"usage"`
+	AIAURIs              *certutil.URLEntries      `json:"aia_uris,omitempty"`
 }
 
 type localCRLConfigEntry struct {
@@ -425,6 +426,19 @@ func (i issuerEntry) EnsureUsage(usage issuerUsage) error {
 
 	// Maybe we have an unnamed usage that's requested.
 	return fmt.Errorf("unknown delta between usages: %v -> %v / for issuer [%v]", usage.Names(), i.Usage.Names(), issuerRef)
+}
+
+func (i issuerEntry) GetAIAURLs(sc *storageContext) (urls *certutil.URLEntries, err error) {
+	// Default to the per-issuer AIA URLs.
+	urls = i.AIAURIs
+
+	// If none are set (either due to a nil entry or because no URLs have
+	// been provided), fall back to the global AIA URL config.
+	if urls == nil || (len(urls.IssuingCertificates) == 0 && len(urls.CRLDistributionPoints) == 0 && len(urls.OCSPServers) == 0) {
+		urls, err = getURLs(sc.Context, sc.Storage)
+	}
+
+	return urls, err
 }
 
 func (sc *storageContext) listIssuers() ([]issuerID, error) {
