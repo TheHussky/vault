@@ -25,6 +25,52 @@ func TestBackend_CRL_EnableDisableRoot(t *testing.T) {
 	crlEnableDisableTestForBackend(t, b, s, []string{caSerial})
 }
 
+func TestBackend_CRL_AllKeyTypeSigAlgos(t *testing.T) {
+	type testCase struct {
+		KeyType string
+		KeyBits int
+		SigAlgo string
+	}
+
+	var testCases = []testCase{
+		{"rsa", 2048, "SHA256WithRSA"},
+		{"rsa", 2048, "SHA384WithRSA"},
+		{"rsa", 2048, "SHA512WithRSA"},
+		{"rsa", 2048, "SHA256WithRSAPSS"},
+		{"rsa", 2048, "SHA384WithRSAPSS"},
+		{"rsa", 2048, "SHA512WithRSAPSS"},
+		{"ec", 256, "ECDSAWithSHA256"},
+		{"ec", 384, "ECDSAWithSHA384"},
+		{"ec", 521, "ECDSAWithSHA512"},
+		{"ed25519", 0, "PureEd25519"},
+	}
+
+	for index, tc := range testCases {
+		t.Logf("tv %v", index)
+		b, s := createBackendWithStorage(t)
+
+		resp, err := CBWrite(b, s, "root/generate/internal", map[string]interface{}{
+			"ttl":         "40h",
+			"common_name": "myvault.com",
+			"key_type":    tc.KeyType,
+			"key_bits":    tc.KeyBits,
+		})
+		if err != nil {
+			t.Fatalf("tc %v: %v", index, err)
+		}
+		caSerial := resp.Data["serial_number"].(string)
+
+		_, err = CBPatch(b, s, "issuer/default", map[string]interface{}{
+			"revocation_signature_algorithm": tc.SigAlgo,
+		})
+		if err != nil {
+			t.Fatalf("tc %v: %v", index, err)
+		}
+
+		crlEnableDisableTestForBackend(t, b, s, []string{caSerial})
+	}
+}
+
 func TestBackend_CRL_EnableDisableIntermediateWithRoot(t *testing.T) {
 	crlEnableDisableIntermediateTestForBackend(t, true)
 }
